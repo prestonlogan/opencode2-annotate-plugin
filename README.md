@@ -10,8 +10,41 @@ comments (which Codex does not yet support).
 ## Installation
 
 Requires OpenCode **V2** with CLI plugin support, the `session.panel` slot,
-and the `session.hook("prompt")` API. Developed and manually verified with
-`opencode2 v0.0.0-beta-19425`; compatibility with other beta builds may vary.
+and the `session.hook("prompt")` API. Developed with
+`opencode2 v0.0.0-beta-19425`; GitHub package installation is tested with
+`v0.0.0-beta-19507`. Compatibility with other beta builds may vary.
+
+Install directly from GitHub using OpenCode's plugin manager:
+
+```sh
+opencode2 plugin add github:prestonlogan/opencode2-annotate-plugin
+```
+
+If your executable is named `opencode`, use that instead of `opencode2`.
+The installer downloads the package and adds it to your global configuration.
+Restart OpenCode, then run `/annotate` in a session. No manual clone or build
+is needed; the package includes the compiled TUI entrypoint.
+
+To install the tagged release instead of the default branch:
+
+```sh
+opencode2 plugin add github:prestonlogan/opencode2-annotate-plugin#v0.1.0
+```
+
+For default-branch installations, check for and install updates with:
+
+```sh
+opencode2 plugin check
+opencode2 plugin update github:prestonlogan/opencode2-annotate-plugin
+```
+
+Restart the TUI after updating. Install only one copy: if migrating from a
+manual clone, move the old directory outside OpenCode's plugin discovery paths
+and remove its local entry from `opencode.json` before using `plugin add`.
+
+### Local development
+
+To work on the plugin source instead:
 
 ```sh
 git clone https://github.com/prestonlogan/opencode2-annotate-plugin.git \
@@ -27,9 +60,15 @@ Add `"./plugins/annotate"` to the `plugins` array in
 }
 ```
 
-Restart OpenCode, then run `/annotate` in a session. The host compiles the
-local TypeScript/TSX entrypoints; no separate build step is required. Restart
-after pulling updates to load TUI changes.
+Install build dependencies and compile the TUI from the cloned directory:
+
+```sh
+npm ci
+npm run build
+```
+
+Restart OpenCode after rebuilding to load TUI changes. The compiled
+`dist/tui.js` is checked into Git so GitHub installations need no build hooks.
 
 The attach-on-send hook currently requires the TUI and server to share the
 same local state directory. Remote servers with separate filesystems are not
@@ -138,6 +177,8 @@ from the displayed text and quoted spans so the prompt stays clean.
 
 - `index.ts` — server half (`local.annotate`); the attach-on-send prompt hook.
 - `tui.tsx` — panel, composer strip, `/annotate` command.
+- `build.mjs` — compiles TSX with Solid's universal OpenTUI transform.
+- `dist/tui.js` — precompiled TUI entrypoint used by installed packages.
 - `shared.ts` — types, prompt builder, and store-path helpers used by both.
 - Registered in `~/.config/opencode/opencode.json` under `plugins` as
   `"./plugins/annotate"`.

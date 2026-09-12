@@ -11,8 +11,17 @@
   "dependencies": {
     "@opencode-ai/plugin": "1.18.18"
   },
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@babel/core": "7.28.0",
+    "@babel/preset-typescript": "7.27.1",
+    "babel-preset-solid": "1.9.12",
+    "esbuild": "0.25.12"
+  },
   "exports": {
     ".": "./index.ts",
-    "./tui": "./tui.tsx"
+    "./tui": "./dist/tui.js"
   }
 }
