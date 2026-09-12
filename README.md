@@ -1,184 +1,137 @@
-![Annotate for OpenCode 2 — response selection, annotation panel, and staged comments](assets/opencode2-annotate-plugin-banner.png)
+![Annotate assistant responses in OpenCode — word selection, annotation panel, and staged comments](assets/opencode2-annotate-plugin-banner.png)
 
-# opencode2-annotate-plugin
+# Annotate assistant responses in OpenCode
 
-OpenCode V2 TUI plugin: select spans of assistant responses, attach a
-question or comment to each, and send them all as your next prompt. Modeled on
-the Codex desktop "Add to chat" response-annotation flow, with per-span
-comments (which Codex does not yet support).
+Select words in earlier assistant responses, attach a comment to each span, and send the annotations with your next OpenCode message.
 
-## Installation
+## Install
 
-Requires OpenCode **V2** with CLI plugin support, the `session.panel` slot,
-and the `session.hook("prompt")` API. Developed with
-`opencode2 v0.0.0-beta-19425`; GitHub package installation is tested with
-`v0.0.0-beta-19507`. Compatibility with other beta builds may vary.
-
-Install directly from GitHub using OpenCode's plugin manager:
+Requires OpenCode V2 beta with `session.panel`, `session.composer.top`, session storage, and `session.hook("prompt")` support.
 
 ```sh
 opencode2 plugin add github:prestonlogan/opencode2-annotate-plugin
 ```
 
-If your executable is named `opencode`, use that instead of `opencode2`.
-The installer downloads the package and adds it to your global configuration.
-Restart OpenCode, then run `/annotate` in a session. No manual clone or build
-is needed; the package includes the compiled TUI entrypoint.
-
-To install the tagged release instead of the default branch:
+Install the pinned release with `#v0.1.0` instead:
 
 ```sh
 opencode2 plugin add github:prestonlogan/opencode2-annotate-plugin#v0.1.0
 ```
 
-For default-branch installations, check for and install updates with:
+If your executable is named `opencode`, replace `opencode2` in these commands. Restart OpenCode after installing, then run `/annotate` in a session.
+
+### Compatibility
+
+The `v0.1.0` package was tested with OpenCode `v0.0.0-beta-19507` for package installation, TUI loading, `/annotate`, and an isolated prompt-hook attach-and-clear check. Other beta builds may vary.
+
+### Keep one installation active
+
+The package manager adds the plugin to the global OpenCode configuration. If `~/.config/opencode/plugins/annotate` already contains a manual clone, move it outside the plugins folder and remove its entry from `~/.config/opencode/opencode.json`.
+
+For a default-branch installation:
 
 ```sh
 opencode2 plugin check
 opencode2 plugin update github:prestonlogan/opencode2-annotate-plugin
 ```
 
-Restart the TUI after updating. Install only one copy: if migrating from a
-manual clone, move the old directory outside OpenCode's plugin discovery paths
-and remove its local entry from `opencode.json` before using `plugin add`.
+Restart after updating. To remove the package:
 
-### Local development
+```sh
+opencode2 plugin remove github:prestonlogan/opencode2-annotate-plugin
+```
 
-To work on the plugin source instead:
+## Use
+
+Open a session with at least one assistant response, then run `/annotate` or choose **Annotate** in the command palette (`Ctrl+P`). The panel loads history and opens the latest response.
+
+1. Drag across words. Selection snaps to whole words and can cross lines without invoking the host’s copy selection.
+2. Press `a`, add a comment, and submit the dialog.
+3. Use `Up` or `Down` to move through assistant responses. Repeat across any number of responses.
+4. Press `Enter`. The panel closes and a summary strip above the composer shows what is staged.
+5. Send your follow-up normally. Its beginning receives the annotations, the summary disappears, and an open panel closes.
+
+Use `Esc` to discard; a confirmation appears when annotations are staged. If none are staged, the panel closes immediately.
+
+The panel shows `No assistant response in this session yet.` until usable assistant text is available. Reopen `/annotate` if history loading fails.
+
+![OpenCode terminal with a highlighted response span in the Annotate panel and a comment dialog asking “Who was the last to commit?”](assets/opencode2-annotate-plugin-comment-dialog.png)
+
+*Select a span and press `a` to attach a comment. Staged annotations remain visible above the composer.*
+
+### Panel keys
+
+| Key | Action |
+| --- | --- |
+| drag | Select words |
+| `Up` | Older response |
+| `Down` | Newer response |
+| `a` | Annotate selection |
+| `Enter` | Keep staged and close |
+| `u` | Remove latest annotation |
+| `c` | Clear selection |
+| `f` | Toggle fullscreen |
+| `Esc` | Discard and close |
+
+With the main composer focused, `Ctrl+C` clears staged annotations without confirmation. If the draft is non-empty, OpenCode’s normal clear action also empties it; if annotations are the only draft content, the shortcut does not exit.
+
+## Prompt format
+
+```text
+I have annotated specific parts of your earlier responses. Each annotation quotes the exact span I selected, followed by my question or comment about that span. Source labels identify the response being discussed. Please address each one.
+
+[1] "the exact selected span"
+    Source: assistant response 2 (message msg_example_2)
+    → your comment
+
+[2] "another exact selected span"
+    Source: assistant response 5 (message msg_example_5)
+    → your comment
+
+Text typed in the composer
+```
+
+The parser flattens common Markdown patterns before display and selection, including emphasis, inline code, links, images, headings, block quotes, and code fences. Visible link and image labels remain; list markers become `•`. Because selection operates on display text, a quoted span may differ from the original Markdown source syntax.
+
+## Annotation lifecycle
+
+- Annotations are staged per OpenCode session and survive panel closure and TUI restart.
+- A newer assistant response makes the staged set stale. The summary disappears and the annotations are not attached.
+- The next eligible user prompt receives the complete staged set once. Prompts already beginning with the annotation header are not rewritten.
+- The panel fetches the complete assistant history independently of the transcript cache, then merges live cached messages for display.
+
+### Technical details
+
+The TUI plugin registers `local.annotate.tui`; the server registers `local.annotate`. Staged annotations are written under the key `annotations` to:
+
+```text
+$XDG_STATE_HOME/opencode/<channel>/tui/plugin.local.annotate.tui.annotations.json
+```
+
+When `XDG_STATE_HOME` is unset, the default is `~/.local/state/opencode/<channel>/tui/plugin.local.annotate.tui.annotations.json`. The server reads that file directly, so the TUI and server must share its filesystem.
+
+## Local development
+
+Clone the repository where your OpenCode configuration can reach it:
 
 ```sh
 git clone https://github.com/prestonlogan/opencode2-annotate-plugin.git \
   ~/.config/opencode/plugins/annotate
 ```
 
-Add `"./plugins/annotate"` to the `plugins` array in
-`~/.config/opencode/opencode.json`, preserving your existing entries:
+Add `"./plugins/annotate"` to the `plugins` array in `~/.config/opencode/opencode.json`, preserving existing entries.
 
-```json
-{
-  "plugins": ["./plugins/annotate"]
-}
-```
-
-Install build dependencies and compile the TUI from the cloned directory:
+The compiled `dist/tui.js` is checked in. After editing `tui.tsx`, rebuild and restart OpenCode:
 
 ```sh
 npm ci
 npm run compile:tui
 ```
 
-Restart OpenCode after rebuilding to load TUI changes. The compiled
-`dist/tui.js` is checked into Git so GitHub installations need no build hooks.
+## Source layout
 
-The attach-on-send hook currently requires the TUI and server to share the
-same local state directory. Remote servers with separate filesystems are not
-supported by this storage bridge. Annotation drafts are stored in OpenCode's
-state directory, outside this repository.
-
-## Usage
-
-1. In a session with at least one assistant reply, run `/annotate` (also in
-   the `Ctrl+P` palette under **Annotate**). A side panel opens showing the
-   latest assistant response as plain text. Use **Up** for an older response
-   and **Down** for a newer one; the header shows **Response N of M**.
-2. **Drag** across words to select a span (whole-word granularity, any length,
-   across lines).
-3. Press **`a`** and type your question or comment about that span.
-4. Repeat for as many spans and responses as you like. Browsing keeps every
-   annotation staged; each is labeled with its source response.
-5. Press **`Enter`** when you're done. The panel closes and the annotations
-   stay staged: a summary strip appears above the composer showing what will be
-   attached to your next message. Run `/annotate` again to edit them, or `Esc`
-   in the panel to discard.
-6. Type your message in the composer and send it as usual. The staged
-   annotations are **attached automatically** to that prompt, the strip
-   disappears, and the panel (if reopened) closes.
-
-![OpenCode terminal with a highlighted response span in the Annotate panel and a comment dialog asking “Who was the last to commit?”](assets/opencode2-annotate-plugin-comment-dialog.png)
-
-*Select a span and press `a` to add a question or comment; saved annotations stay staged above the composer.*
-
-Press **`Esc`** in the panel to discard instead. If anything is staged you get a
-confirmation first; with nothing staged it simply closes.
-
-In the composer, **`Ctrl+C`** clears staged annotations immediately, together
-with any typed draft, without confirmation. With annotations alone, it clears
-them without triggering exit. With nothing staged, OpenCode handles the key
-normally; the panel's `Esc` confirmation behavior is unchanged.
-
-### Panel keys
-
-| Key     | Action                                   |
-| ------- | ---------------------------------------- |
-| drag    | select words                             |
-| `Up`    | show the previous (older) response        |
-| `Down`  | show the next (newer) response            |
-| `a`     | annotate the current selection           |
-| `Enter` | done: keep staged and close the panel    |
-| `u`     | remove the last annotation               |
-| `c`     | clear the current selection              |
-| `f`     | toggle fullscreen                        |
-| `Esc`   | discard staged annotations (confirms) and close |
-
-## What the model receives
-
-```
-I have annotated specific parts of your earlier responses. Each annotation
-quotes the exact span I selected, followed by my question or comment about
-that span. Source labels identify the response being discussed. Please address each one.
-
-[1] "quoted span one"
-    Source: assistant response 2 (message msg_example_2)
-    → your comment
-
-[2] "quoted span two"
-    Source: assistant response 5 (message msg_example_5)
-    → your comment
-```
-
-Inline Markdown (`**bold**`, `` `code` ``, links, list markers) is stripped
-from the displayed text and quoted spans so the prompt stays clean.
-
-## Behavior notes
-
-- **Navigation**: opens on the latest text-bearing assistant message. Up/Down
-  browse the session's text-bearing assistant messages in chronological
-  order, stopping at either end. Tool-only messages are skipped. Changing
-  response clears the temporary selection and resets scrolling to the top.
-  Reopening starts at the latest response; staged annotations from all visited
-  responses remain visible. `u` removes the most recently added annotation
-  across all responses.
-- **History loading**: opening the panel fetches every page of session history
-  independently of the transcript's lazy-loaded cache. Browsing and adding
-  annotations become available once loading completes, so response numbering
-  uses the full history. Live cached messages update the fetched history for
-  display. If loading fails, reopen `/annotate` to retry.
-- **Persistence**: staged annotations are stored per session via the plugin
-  storage API. Each annotation records its source message ID; the draft's
-  outer message ID tracks the latest assistant message when staged, independently
-  of which older response is being annotated. They survive closing the
-  panel and restarting; they are dropped automatically once a newer assistant
-  reply exists.
-- **Attach-on-send**: the server half registers a `session.hook("prompt")`
-  that prepends any staged annotations to the next user prompt for that
-  session and then deletes the session's store entry. Drafts predating a new
-  assistant reply are skipped; selecting an older response does not make a
-  draft stale. Both halves read the same
-  store file:
-  `~/.local/state/opencode/<channel>/tui/plugin.local.annotate.tui.annotations.json`.
-  The TUI watches that entry: when it vanishes, the composer strip hides and
-  an open panel auto-closes. Sending is always done from the composer, so it
-  follows the composer's own delivery semantics.
-- **Selection**: the panel deliberately does not use OpenTUI's native text
-  selection (which the host wires to copy-to-clipboard). Each word is its own
-  renderable and the drag range is hit-tested from mouse coordinates.
-
-## Files
-
-- `index.ts` — server half (`local.annotate`); the attach-on-send prompt hook.
-- `tui.tsx` — panel, composer strip, `/annotate` command.
-- `build.mjs` — compiles TSX with Solid's universal OpenTUI transform.
-- `dist/tui.js` — precompiled TUI entrypoint used by installed packages.
-- `shared.ts` — types, prompt builder, and store-path helpers used by both.
-- Registered in `~/.config/opencode/opencode.json` under `plugins` as
-  `"./plugins/annotate"`.
+- `index.ts` — server plugin and prompt hook.
+- `tui.tsx` — panel, selection, annotations, keymaps, and composer strip.
+- `shared.ts` — annotation types, prompt format, and storage paths.
+- `build.mjs` — Solid/OpenTUI TUI compilation.
+- `dist/tui.js` — checked-in bundle used by installed packages.
