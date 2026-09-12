@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, onMount, onCleanup } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { Plugin, usePlugin } from "@opencode/plugin/tui"
-import { PANEL, STORE_KEY, type Annotation, type StoreShape } from "./shared.ts"
+import { PANEL, STORE_KEY, buildPrompt, type Annotation, type StoreShape } from "./shared.ts"
 
 // Shape of the `session.panel` slot input (from the host's PanelInput).
 type PanelInput = {
@@ -420,10 +420,30 @@ function AnnotatePanel(props: { panel: PanelInput }) {
  * so you can see what will be attached to your next message even with the
  * panel closed.
  */
+function optionValue(options: any, key: string, fallback: any) {
+  const snake = key.replace(/[A-Z]/g, (character: string) => `_${character.toLowerCase()}`)
+  const kebab = snake.replace(/_/g, "-")
+  const keys = [key, snake, kebab, key.toLowerCase()]
+  for (const candidate of keys) {
+    if (options?.[candidate] !== undefined) return options[candidate]
+  }
+  return fallback
+}
+
+function hasPendingQueuedPrompt(context: Ctx, sessionID: string) {
+  try {
+    const pending = (context.data as any).session?.pending?.list?.(sessionID) ?? []
+    return Array.isArray(pending) && pending.some((item: any) => item?.type === "user" && item?.delivery === "queue")
+  } catch {
+    return false
+  }
+}
+
 function ComposerStrip(props: { sessionID: string }) {
   const context = usePlugin()
   const theme = () => context.theme
   const { items, set } = useAnnotations(context, () => props.sessionID)
+  const [sending, setSending] = createSignal(false)
 
   // The host installs its own getClipboardText on the main prompt textarea
   // to expand pasted text. Dialog/form editors do not have this own property.
@@ -435,6 +455,79 @@ function ComposerStrip(props: { sessionID: string }) {
     if (!editor || editor.isDestroyed || !Object.prototype.hasOwnProperty.call(editor, "getClipboardText")) return undefined
     return editor
   }
+
+  const hasComposerDraft = (editor: any) => {
+    try {
+      return !!editor?.plainText?.trim?.()
+    } catch {
+      return true
+    }
+  }
+
+  const autoSendEnabled = () => optionValue(context.options, "sendOnEmptyEnter", true) !== false
+  const sendBinding = () => {
+    if (!autoSendEnabled()) return "none"
+    const configured = optionValue(context.options, "sendBinding", "enter")
+    if (configured === false || configured === "none") return "none"
+    return typeof configured === "string" && configured.length > 0 ? configured : "enter"
+  }
+  const canSendStandalone = () => {
+    try {
+      if (sending()) return false
+      if (items().length === 0) return false
+      if (hasPendingQueuedPrompt(context, props.sessionID)) return false
+      const editor = composer()
+      return !!editor && !hasComposerDraft(editor)
+    } catch {
+      return false
+    }
+  }
+
+  const sendAnnotationsOnly = async () => {
+    const staged = items()
+    if (staged.length === 0) return false
+    try {
+      await context.client.session.prompt({
+        sessionID: props.sessionID,
+        text: buildPrompt(staged, ""),
+        delivery: "steer",
+      })
+      void set(() => []).catch((error: unknown) => {
+        context.ui.toast.show({ message: `Could not clear annotations: ${String(error)}`, variant: "error" })
+      })
+      return true
+    } catch (error) {
+      context.ui.toast.show({ message: `Could not send annotations: ${String(error)}`, variant: "error" })
+      return false
+    }
+  }
+
+  context.keymap.layer(() => ({
+    target: composer,
+    priority: 11,
+    enabled: canSendStandalone(),
+    commands: [{
+      id: "local.annotate.send",
+      title: "Send staged annotations",
+      description: "Send staged comments without requiring a composer message",
+      group: "Annotate",
+      palette: true,
+      bind: sendBinding(),
+      run: async (_input: unknown, event: any) => {
+        if (!canSendStandalone()) return false
+        event?.preventDefault()
+        event?.stopPropagation()
+        if (sending()) return true
+        setSending(true)
+        try {
+          await sendAnnotationsOnly()
+          return true
+        } finally {
+          setSending(false)
+        }
+      },
+    }],
+  }))
 
   context.keymap.layer(() => ({
     target: composer,

@@ -12,17 +12,17 @@ Requires OpenCode V2 beta with `session.panel`, `session.composer.top`, session 
 opencode2 plugin add github:prestonlogan/opencode2-annotate-plugin
 ```
 
-Install the pinned release with `#v0.1.0` instead:
+Install the pinned release with `#v0.2.0` instead:
 
 ```sh
-opencode2 plugin add github:prestonlogan/opencode2-annotate-plugin#v0.1.0
+opencode2 plugin add github:prestonlogan/opencode2-annotate-plugin#v0.2.0
 ```
 
 If your executable is named `opencode`, replace `opencode2` in these commands. Restart OpenCode after installing, then run `/annotate` in a session.
 
 ### Compatibility
 
-The `v0.1.0` package was tested with OpenCode `v0.0.0-beta-19507` for package installation, TUI loading, `/annotate`, and an isolated prompt-hook attach-and-clear check. Other beta builds may vary.
+The `v0.2.0` feature set was exercised with OpenCode `v2.0.2`, including `/annotate`, annotated composer prompts, and annotations-only submission. The `v0.1.0` package was tested through clean GitHub installation on `v0.0.0-beta-19507`; other beta builds may vary.
 
 ### Keep one installation active
 
@@ -49,7 +49,9 @@ Open a session with at least one assistant response, then run `/annotate` or cho
 2. Press `a`, add a comment, and submit the dialog.
 3. Use `Up` or `Down` to move through assistant responses. Repeat across any number of responses.
 4. Press `Enter`. The panel closes and a summary strip above the composer shows what is staged.
-5. Send your follow-up normally. Its beginning receives the annotations, the summary disappears, and an open panel closes.
+5. Type any follow-up and press `Enter`, or press `Enter` with an empty composer to send the annotations by themselves.
+
+The panel’s `Enter` keeps the annotations staged. When the composer contains text, OpenCode submits that draft and the plugin attaches the annotations. When the composer is empty, the plugin sends the annotations as the message.
 
 Use `Esc` to discard; a confirmation appears when annotations are staged. If none are staged, the panel closes immediately.
 
@@ -73,7 +75,34 @@ The panel shows `No assistant response in this session yet.` until usable assist
 | `f` | Toggle fullscreen |
 | `Esc` | Discard and close |
 
-With the main composer focused, `Ctrl+C` clears staged annotations without confirmation. If the draft is non-empty, OpenCode’s normal clear action also empties it; if annotations are the only draft content, the shortcut does not exit.
+### Composer keys
+
+| Key | Action |
+| --- | --- |
+| `Enter` | Send staged annotations when the composer is empty |
+| `Ctrl+C` | Clear staged annotations; also clears a non-empty draft through OpenCode’s normal action |
+
+The empty-composer `Enter` action is also available as **Send staged annotations** (`local.annotate.send`) in the command palette. It requires staged annotations and an empty visible composer. If a prompt is waiting in the queue, `Enter` keeps promoting that prompt and leaves the annotations staged.
+
+### Keymap options
+
+OpenCode’s global keybinding table does not accept custom plugin command IDs yet. The plugin therefore exposes the automatic submission binding through its own options:
+
+```json
+{
+  "plugins": [
+    {
+      "package": "github:prestonlogan/opencode2-annotate-plugin",
+      "options": {
+        "sendOnEmptyEnter": true,
+        "sendBinding": "enter"
+      }
+    }
+  ]
+}
+```
+
+Set `sendOnEmptyEnter` to `false` to disable the automatic key while retaining the palette command. Set `sendBinding` to another key sequence, such as `"ctrl+enter"`, or `"none"` to leave the command palette-only. The same options work for a local package entry; replace `package` with the plugin path.
 
 ## Prompt format
 

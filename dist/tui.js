@@ -15,6 +15,17 @@ import { Plugin, usePlugin } from "@opencode/plugin/tui";
 // shared.ts
 var PANEL = "local.annotate.panel";
 var STORE_KEY = "annotations";
+var PROMPT_HEADER = "I have annotated specific parts of your earlier responses. Each annotation quotes the exact span I selected, followed by my question or comment about that span. Source labels identify the response being discussed. Please address each one.";
+function buildPrompt(items, extra) {
+  const lines = [PROMPT_HEADER, "", ...items.flatMap((a, i) => [
+    `[${i + 1}] "${a.span}"`,
+    ...a.messageID ? [`    Source: assistant response ${a.responseNumber ?? ""} (message ${a.messageID})`] : [],
+    `    \u2192 ${a.comment}`,
+    ""
+  ])];
+  if (extra.trim()) lines.push(extra.trim());
+  return lines.join("\n").trimEnd();
+}
 
 // tui.tsx
 function lastAssistantText(context, sessionID) {
@@ -595,6 +606,23 @@ function AnnotatePanel(props) {
     return _el$4;
   })();
 }
+function optionValue(options, key, fallback) {
+  const snake = key.replace(/[A-Z]/g, (character) => `_${character.toLowerCase()}`);
+  const kebab = snake.replace(/_/g, "-");
+  const keys = [key, snake, kebab, key.toLowerCase()];
+  for (const candidate of keys) {
+    if (options?.[candidate] !== void 0) return options[candidate];
+  }
+  return fallback;
+}
+function hasPendingQueuedPrompt(context, sessionID) {
+  try {
+    const pending = context.data.session?.pending?.list?.(sessionID) ?? [];
+    return Array.isArray(pending) && pending.some((item) => item?.type === "user" && item?.delivery === "queue");
+  } catch {
+    return false;
+  }
+}
 function ComposerStrip(props) {
   const context = usePlugin();
   const theme = () => context.theme;
@@ -602,6 +630,7 @@ function ComposerStrip(props) {
     items,
     set
   } = useAnnotations(context, () => props.sessionID);
+  const [sending, setSending] = createSignal(false);
   const composer = () => {
     const route = context.ui.router.current();
     if (route.type !== "session" || route.sessionID !== props.sessionID) return void 0;
@@ -609,6 +638,81 @@ function ComposerStrip(props) {
     if (!editor || editor.isDestroyed || !Object.prototype.hasOwnProperty.call(editor, "getClipboardText")) return void 0;
     return editor;
   };
+  const hasComposerDraft = (editor) => {
+    try {
+      return !!editor?.plainText?.trim?.();
+    } catch {
+      return true;
+    }
+  };
+  const autoSendEnabled = () => optionValue(context.options, "sendOnEmptyEnter", true) !== false;
+  const sendBinding = () => {
+    if (!autoSendEnabled()) return "none";
+    const configured = optionValue(context.options, "sendBinding", "enter");
+    if (configured === false || configured === "none") return "none";
+    return typeof configured === "string" && configured.length > 0 ? configured : "enter";
+  };
+  const canSendStandalone = () => {
+    try {
+      if (sending()) return false;
+      if (items().length === 0) return false;
+      if (hasPendingQueuedPrompt(context, props.sessionID)) return false;
+      const editor = composer();
+      return !!editor && !hasComposerDraft(editor);
+    } catch {
+      return false;
+    }
+  };
+  const sendAnnotationsOnly = async () => {
+    const staged = items();
+    if (staged.length === 0) return false;
+    try {
+      await context.client.session.prompt({
+        sessionID: props.sessionID,
+        text: buildPrompt(staged, ""),
+        delivery: "steer"
+      });
+      void set(() => []).catch((error) => {
+        context.ui.toast.show({
+          message: `Could not clear annotations: ${String(error)}`,
+          variant: "error"
+        });
+      });
+      return true;
+    } catch (error) {
+      context.ui.toast.show({
+        message: `Could not send annotations: ${String(error)}`,
+        variant: "error"
+      });
+      return false;
+    }
+  };
+  context.keymap.layer(() => ({
+    target: composer,
+    priority: 11,
+    enabled: canSendStandalone(),
+    commands: [{
+      id: "local.annotate.send",
+      title: "Send staged annotations",
+      description: "Send staged comments without requiring a composer message",
+      group: "Annotate",
+      palette: true,
+      bind: sendBinding(),
+      run: async (_input, event) => {
+        if (!canSendStandalone()) return false;
+        event?.preventDefault();
+        event?.stopPropagation();
+        if (sending()) return true;
+        setSending(true);
+        try {
+          await sendAnnotationsOnly();
+          return true;
+        } finally {
+          setSending(false);
+        }
+      }
+    }]
+  }));
   context.keymap.layer(() => ({
     target: composer,
     priority: 10,
