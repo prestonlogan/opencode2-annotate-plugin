@@ -1,0 +1,15 @@
+{
+  "name": "opencode2-annotate-plugin",
+  "description": "Annotate spans across assistant responses in an OpenCode V2 side panel and attach comments to your next prompt.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prestonlogan/opencode2-annotate-plugin.git"
+  },
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./index.ts",
+    "./tui": "./tui.tsx"
+  }
+}
