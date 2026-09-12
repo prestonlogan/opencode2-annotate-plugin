@@ -8,6 +8,9 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "dependencies": {
+    "@opencode-ai/plugin": "1.18.18"
+  },
   "exports": {
     ".": "./index.ts",
     "./tui": "./tui.tsx"
