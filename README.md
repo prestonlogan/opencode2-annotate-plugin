@@ -1,3 +1,5 @@
+![Annotate for OpenCode 2 — response selection, annotation panel, and staged comments](assets/opencode2-annotate-plugin-banner.png)
+
 # opencode2-annotate-plugin
 
 OpenCode V2 TUI plugin: select spans of assistant responses, attach a
