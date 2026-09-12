@@ -64,7 +64,7 @@ Install build dependencies and compile the TUI from the cloned directory:
 
 ```sh
 npm ci
-npm run build
+npm run compile:tui
 ```
 
 Restart OpenCode after rebuilding to load TUI changes. The compiled

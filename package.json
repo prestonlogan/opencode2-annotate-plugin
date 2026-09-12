@@ -12,7 +12,7 @@
     "@opencode-ai/plugin": "1.18.18"
   },
   "scripts": {
-    "build": "node build.mjs"
+    "compile:tui": "node build.mjs"
   },
   "devDependencies": {
     "@babel/core": "7.28.0",
