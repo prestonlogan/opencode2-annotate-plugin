@@ -55,6 +55,10 @@ state directory, outside this repository.
    annotations are **attached automatically** to that prompt, the strip
    disappears, and the panel (if reopened) closes.
 
+![OpenCode terminal with a highlighted response span in the Annotate panel and a comment dialog asking “Who was the last to commit?”](assets/opencode2-annotate-plugin-comment-dialog.png)
+
+*Select a span and press `a` to add a question or comment; saved annotations stay staged above the composer.*
+
 Press **`Esc`** in the panel to discard instead. If anything is staged you get a
 confirmation first; with nothing staged it simply closes.
 
